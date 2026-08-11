@@ -17,6 +17,10 @@ async def startup():
     if not DATABASE_URL:
         raise ValueError("DATABASE_URL environment variable is missing!")
     pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=5)
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "ALTER TABLE latest_pokemon_prices ADD COLUMN IF NOT EXISTS image_url TEXT;"
+        )
 
 
 @app.on_event("shutdown")
