@@ -99,10 +99,17 @@ async def main():
         VALUES ($1, $2, $3, $4, $5, $6, $7);
     """
 
-    # Cleanup query: Drop any historical records older than 7 days
-    cleanup_query = """
-        DELETE FROM pokemon_price_history 
-        WHERE fetched_at < NOW() - INTERVAL '7 days';
+    # Downsample query: for history older than 7 days, keep only the latest
+    # record per card/variant/day instead of every hourly point, so storage
+    # grows ~24x slower while still preserving long-term price trends.
+    downsample_query = """
+        DELETE FROM pokemon_price_history a
+        USING pokemon_price_history b
+        WHERE a.fetched_at < NOW() - INTERVAL '7 days'
+          AND a.card_id = b.card_id
+          AND a.variant = b.variant
+          AND date_trunc('day', a.fetched_at) = date_trunc('day', b.fetched_at)
+          AND a.fetched_at < b.fetched_at;
     """
 
     async with conn.transaction():
@@ -120,9 +127,9 @@ async def main():
         else:
             print("No market price changes detected since last run.")
 
-        # Prune old data
-        delete_result = await conn.execute(cleanup_query)
-        print(f"Pruned old records: {delete_result}")
+        # Downsample old data
+        delete_result = await conn.execute(downsample_query)
+        print(f"Downsampled old records: {delete_result}")
 
     await conn.close()
     print("Database sync complete!")
