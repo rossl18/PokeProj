@@ -71,24 +71,30 @@ async def main():
                         prices.get("lowPrice"),
                         prices.get("midPrice"),
                         prices.get("highPrice"),
+                        card.get("image"),
                     ))
 
     print(f"Connecting to Neon to process {len(records)} records...")
     conn = await asyncpg.connect(DATABASE_URL)
+    await conn.execute(
+        "ALTER TABLE latest_pokemon_prices ADD COLUMN IF NOT EXISTS image_url TEXT;"
+    )
 
     # SQL query: Upsert into latest_pokemon_prices AND return rows where market_price actually changed
     upsert_query = """
-        INSERT INTO latest_pokemon_prices 
-        (card_id, variant, card_name, market_price, low_price, mid_price, high_price, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
+        INSERT INTO latest_pokemon_prices
+        (card_id, variant, card_name, market_price, low_price, mid_price, high_price, image_url, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
         ON CONFLICT (card_id, variant) DO UPDATE SET
             card_name = EXCLUDED.card_name,
             low_price = EXCLUDED.low_price,
             mid_price = EXCLUDED.mid_price,
             high_price = EXCLUDED.high_price,
             market_price = EXCLUDED.market_price,
+            image_url = EXCLUDED.image_url,
             updated_at = CURRENT_TIMESTAMP
         WHERE latest_pokemon_prices.market_price IS DISTINCT FROM EXCLUDED.market_price
+           OR latest_pokemon_prices.image_url IS DISTINCT FROM EXCLUDED.image_url
         RETURNING card_id, card_name, variant, market_price, low_price, mid_price, high_price;
     """
 

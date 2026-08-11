@@ -2,8 +2,10 @@ import os
 
 import asyncpg
 from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+MAX_BATCH_ITEMS = 500
 
 app = FastAPI(title="PokeApp API")
 pool: asyncpg.Pool | None = None
@@ -30,7 +32,7 @@ async def health():
 
 @app.get("/cards")
 async def list_cards(search: str | None = None, limit: int = 50):
-    query = "SELECT card_id, variant, card_name, market_price, low_price, mid_price, high_price, updated_at FROM latest_pokemon_prices"
+    query = "SELECT card_id, variant, card_name, market_price, low_price, mid_price, high_price, image_url, updated_at FROM latest_pokemon_prices"
     args = []
     if search:
         query += " WHERE card_name ILIKE $1"
@@ -40,6 +42,52 @@ async def list_cards(search: str | None = None, limit: int = 50):
 
     async with pool.acquire() as conn:
         rows = await conn.fetch(query, *args)
+    return [dict(r) for r in rows]
+
+
+class CardVariantKey(BaseModel):
+    card_id: str
+    variant: str
+
+
+class BatchRequest(BaseModel):
+    items: list[CardVariantKey]
+
+
+@app.post("/cards/batch")
+async def batch_prices(req: BatchRequest):
+    if not req.items:
+        return []
+    if len(req.items) > MAX_BATCH_ITEMS:
+        raise HTTPException(status_code=400, detail=f"Too many items, max {MAX_BATCH_ITEMS}")
+
+    card_ids = [i.card_id for i in req.items]
+    variants = [i.variant for i in req.items]
+    query = """
+        SELECT card_id, variant, card_name, market_price, low_price, mid_price,
+               high_price, image_url, updated_at
+        FROM latest_pokemon_prices
+        WHERE (card_id, variant) IN (
+            SELECT * FROM unnest($1::text[], $2::text[])
+        )
+    """
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(query, card_ids, variants)
+    return [dict(r) for r in rows]
+
+
+@app.get("/cards/{card_id}")
+async def get_card(card_id: str):
+    query = """
+        SELECT card_id, variant, card_name, market_price, low_price, mid_price,
+               high_price, image_url, updated_at
+        FROM latest_pokemon_prices WHERE card_id = $1
+        ORDER BY variant
+    """
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(query, card_id)
+    if not rows:
+        raise HTTPException(status_code=404, detail="Card not found")
     return [dict(r) for r in rows]
 
 
