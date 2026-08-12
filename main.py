@@ -37,9 +37,35 @@ async def list_cards(search: str | None = None, limit: int = 50):
         "high_price, image_url, set_name, card_number, updated_at FROM latest_pokemon_prices"
     )
     args = []
-    if search:
-        query += " WHERE card_name ILIKE $1 OR set_name ILIKE $1 OR card_number ILIKE $1"
-        args.append(f"%{search}%")
+
+    # Split into tokens so "blastoise #2" or "phantom forces 117" matches a
+    # card whose name/set/number satisfy each token individually, rather than
+    # requiring the whole phrase to appear in a single column.
+    tokens = search.split() if search else []
+    if tokens:
+        clauses = []
+        for token in tokens:
+            token = token.lstrip("#")
+            if not token:
+                continue
+            args.append(f"%{token}%")
+            like_idx = len(args)
+            if token.isdigit():
+                # A bare number almost always means "card number" — match it
+                # exactly there, but still allow it to appear in the name/set
+                # (e.g. a card literally named "150").
+                args.append(token)
+                num_idx = len(args)
+                clauses.append(
+                    f"(card_number = ${num_idx} OR card_name ILIKE ${like_idx} OR set_name ILIKE ${like_idx})"
+                )
+            else:
+                clauses.append(
+                    f"(card_name ILIKE ${like_idx} OR set_name ILIKE ${like_idx} OR card_number ILIKE ${like_idx})"
+                )
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+
     query += " ORDER BY card_name LIMIT $%d" % (len(args) + 1)
     args.append(limit)
 
