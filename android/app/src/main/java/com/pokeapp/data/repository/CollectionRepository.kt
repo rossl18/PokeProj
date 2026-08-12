@@ -116,6 +116,15 @@ class CollectionRepository @Inject constructor(
                 )
             )
         }
+
+        // Seed the price cache with the price we already have in hand (from
+        // Search/Scan/Detail) instead of showing "stale/$0" until the next
+        // debounced refresh happens.
+        val key = CardKey(card.cardId, card.variant)
+        priceCache.value = priceCache.value + (key to card.marketPrice)
+        card.marketPrice?.let { price ->
+            dao.updateLastKnownPrice(card.cardId, card.variant, (price * 100).toLong(), System.currentTimeMillis())
+        }
     }
 
     suspend fun deleteByIds(ids: List<Long>) = dao.deleteByIds(ids)

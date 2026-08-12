@@ -16,8 +16,20 @@ import com.patrykandpatrick.vico.compose.cartesian.axis.VerticalAxis
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
+import com.patrykandpatrick.vico.compose.cartesian.data.CartesianValueFormatter
 import com.patrykandpatrick.vico.compose.cartesian.data.lineModel
 import com.pokeapp.domain.model.PricePoint
+import java.time.OffsetDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+
+private val labelFormatter = DateTimeFormatter.ofPattern("M/d h a")
+
+private fun formatLabel(isoTimestamp: String): String = try {
+    OffsetDateTime.parse(isoTimestamp).format(labelFormatter)
+} catch (e: DateTimeParseException) {
+    isoTimestamp
+}
 
 @Composable
 fun PriceHistoryChart(history: List<PricePoint>, modifier: Modifier = Modifier) {
@@ -28,6 +40,15 @@ fun PriceHistoryChart(history: List<PricePoint>, modifier: Modifier = Modifier) 
             Text("Not enough history yet for a chart.")
         }
         return
+    }
+
+    // X = point index (keeps axis math simple/precise); a parallel map from
+    // index -> formatted timestamp label drives the bottom axis text.
+    val labels = remember(pointsWithPrice) {
+        pointsWithPrice.mapIndexed { index, point -> index.toFloat() to formatLabel(point.fetchedAt) }.toMap()
+    }
+    val bottomFormatter = remember(labels) {
+        CartesianValueFormatter { _, x, _ -> labels[x.toFloat()] ?: "" }
     }
 
     val modelProducer = remember { CartesianChartModelProducer() }
@@ -41,9 +62,9 @@ fun PriceHistoryChart(history: List<PricePoint>, modifier: Modifier = Modifier) 
         chart = rememberCartesianChart(
             rememberLineCartesianLayer(),
             startAxis = VerticalAxis.rememberStart(),
-            bottomAxis = HorizontalAxis.rememberBottom(),
+            bottomAxis = HorizontalAxis.rememberBottom(valueFormatter = bottomFormatter),
         ),
         modelProducer = modelProducer,
-        modifier = modifier.fillMaxWidth().height(200.dp),
+        modifier = modifier.fillMaxWidth().height(220.dp),
     )
 }

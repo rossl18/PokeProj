@@ -118,9 +118,12 @@ async def main():
         RETURNING card_id, card_name, variant, market_price, low_price, mid_price, high_price;
     """
 
-    # History query: Append only the changed records
+    # History query: append a sample for every card on every run, not just
+    # when the price changed — otherwise cards whose price rarely moves
+    # (common; TCGPlayer market price often only updates ~daily upstream)
+    # end up with almost no chart data despite hourly polling.
     history_query = """
-        INSERT INTO pokemon_price_history 
+        INSERT INTO pokemon_price_history
         (card_id, card_name, variant, market_price, low_price, mid_price, high_price)
         VALUES ($1, $2, $3, $4, $5, $6, $7);
     """
@@ -139,19 +142,24 @@ async def main():
     """
 
     async with conn.transaction():
-        # Execute Upserts and capture changed rows
-        changed_rows = []
+        # Execute upserts (only actually writes latest_pokemon_prices when
+        # something changed, per the WHERE guard above)
+        changed_count = 0
         for r in records:
             row = await conn.fetchrow(upsert_query, *r)
             if row:
-                changed_rows.append(tuple(row))
+                changed_count += 1
+        print(f"{changed_count} rows had a real price/metadata change this run.")
 
-        # Append changed rows to history log
-        if changed_rows:
-            await conn.executemany(history_query, changed_rows)
-            print(f"Appended {len(changed_rows)} price updates to history.")
-        else:
-            print("No market price changes detected since last run.")
+        # Append an hourly sample to history for every card, regardless of
+        # whether the price changed, so charts have real hourly resolution.
+        history_rows = [
+            (card_id, card_name, variant, market_price, low_price, mid_price, high_price)
+            for (card_id, variant, card_name, market_price, low_price, mid_price, high_price, *_rest) in records
+        ]
+        if history_rows:
+            await conn.executemany(history_query, history_rows)
+            print(f"Appended {len(history_rows)} history samples.")
 
         # Downsample old data
         delete_result = await conn.execute(downsample_query)
