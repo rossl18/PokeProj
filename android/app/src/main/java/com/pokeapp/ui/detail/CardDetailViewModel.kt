@@ -7,10 +7,12 @@ import com.pokeapp.data.repository.CardRepository
 import com.pokeapp.data.repository.CollectionRepository
 import com.pokeapp.domain.model.Card
 import com.pokeapp.domain.model.PricePoint
+import com.pokeapp.domain.model.UserCollection
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -21,6 +23,8 @@ data class CardDetailUiState(
     val history: List<PricePoint> = emptyList(),
     val error: String? = null,
     val addedToCollection: Boolean = false,
+    val collections: List<UserCollection> = emptyList(),
+    val defaultCollectionId: Long? = null,
 ) {
     val selectedCard: Card? get() = variants.firstOrNull { it.variant == selectedVariant }
 }
@@ -40,6 +44,13 @@ class CardDetailViewModel @Inject constructor(
 
     init {
         load()
+        viewModelScope.launch {
+            combine(collectionRepository.collections, collectionRepository.selectedCollectionId) { collections, selectedId ->
+                collections to selectedId
+            }.collect { (collections, selectedId) ->
+                _uiState.value = _uiState.value.copy(collections = collections, defaultCollectionId = selectedId)
+            }
+        }
     }
 
     private fun load() {
@@ -69,10 +80,10 @@ class CardDetailViewModel @Inject constructor(
         }
     }
 
-    fun addToCollection(quantity: Int) {
+    fun addToCollection(quantity: Int, collectionId: Long) {
         val card = _uiState.value.selectedCard ?: return
         viewModelScope.launch {
-            collectionRepository.addOrIncrement(card, quantity)
+            collectionRepository.addOrIncrement(card, quantity, collectionId)
             _uiState.value = _uiState.value.copy(addedToCollection = true)
         }
     }

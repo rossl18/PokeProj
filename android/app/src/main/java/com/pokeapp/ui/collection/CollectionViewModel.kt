@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -23,13 +25,25 @@ class CollectionViewModel @Inject constructor(
     private val selectedIds = MutableStateFlow<Set<Long>>(emptySet())
     private val isRefreshing = MutableStateFlow(false)
 
+    private val itemsForSelectedCollection = repository.selectedCollectionId.flatMapLatest { id ->
+        if (id == null) flowOf(emptyList()) else repository.items(id)
+    }
+
+    private val collectionAndItems = combine(
+        repository.collections,
+        repository.selectedCollectionId,
+        itemsForSelectedCollection,
+    ) { collections, selectedId, items -> Triple(collections, selectedId, items) }
+
     val uiState: StateFlow<CollectionUiState> = combine(
-        repository.items,
+        collectionAndItems,
         sortOption,
         selectedIds,
         isRefreshing,
-    ) { items, sort, selected, refreshing ->
+    ) { (collections, selectedCollectionId, items), sort, selected, refreshing ->
         CollectionUiState(
+            collections = collections,
+            selectedCollectionId = selectedCollectionId,
             items = sortItems(items, sort),
             sortOption = sort,
             selectedIds = selected,
@@ -38,7 +52,10 @@ class CollectionViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CollectionUiState())
 
     init {
-        refresh()
+        viewModelScope.launch {
+            repository.ensureInitialized()
+            refresh()
+        }
     }
 
     fun refresh(force: Boolean = false) {
@@ -47,6 +64,20 @@ class CollectionViewModel @Inject constructor(
             runCatching { repository.refreshPrices(force) }
             isRefreshing.value = false
         }
+    }
+
+    fun selectCollection(id: Long) {
+        clearSelection()
+        repository.selectCollection(id)
+    }
+
+    fun createCollection(name: String) {
+        if (name.isBlank()) return
+        viewModelScope.launch { repository.createCollection(name.trim()) }
+    }
+
+    fun deleteCollection(id: Long) {
+        viewModelScope.launch { repository.deleteCollection(id) }
     }
 
     fun setSortOption(option: CollectionSortOption) {

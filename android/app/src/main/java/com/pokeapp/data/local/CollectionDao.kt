@@ -9,11 +9,15 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface CollectionDao {
-    @Query("SELECT * FROM collection_entries ORDER BY dateAdded DESC")
-    fun getAll(): Flow<List<CollectionEntryEntity>>
+    @Query("SELECT * FROM collection_entries WHERE collectionId = :collectionId ORDER BY dateAdded DESC")
+    fun getAllInCollection(collectionId: Long): Flow<List<CollectionEntryEntity>>
 
-    @Query("SELECT * FROM collection_entries WHERE cardId = :cardId AND variant = :variant LIMIT 1")
-    suspend fun getByCardAndVariant(cardId: String, variant: String): CollectionEntryEntity?
+    /** Every owned card across every collection — used to batch-refresh prices in one call. */
+    @Query("SELECT * FROM collection_entries")
+    suspend fun getAllEntriesSnapshot(): List<CollectionEntryEntity>
+
+    @Query("SELECT * FROM collection_entries WHERE collectionId = :collectionId AND cardId = :cardId AND variant = :variant LIMIT 1")
+    suspend fun getByCardAndVariant(collectionId: Long, cardId: String, variant: String): CollectionEntryEntity?
 
     @Insert
     suspend fun insert(entry: CollectionEntryEntity): Long
@@ -29,4 +33,7 @@ interface CollectionDao {
 
     @Query("DELETE FROM collection_entries WHERE id IN (:ids)")
     suspend fun deleteByIds(ids: List<Long>)
+
+    @Query("DELETE FROM collection_entries WHERE collectionId = :collectionId")
+    suspend fun deleteAllInCollection(collectionId: Long)
 }

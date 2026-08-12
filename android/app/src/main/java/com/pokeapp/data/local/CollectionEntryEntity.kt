@@ -6,10 +6,11 @@ import androidx.room.PrimaryKey
 
 @Entity(
     tableName = "collection_entries",
-    indices = [Index(value = ["cardId", "variant"], unique = true)],
+    indices = [Index(value = ["collectionId", "cardId", "variant"], unique = true)],
 )
 data class CollectionEntryEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val collectionId: Long,
     val cardId: String,
     val variant: String,
     val cardName: String,

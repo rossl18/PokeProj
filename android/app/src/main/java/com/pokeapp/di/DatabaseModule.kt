@@ -3,6 +3,7 @@ package com.pokeapp.di
 import android.content.Context
 import androidx.room.Room
 import com.pokeapp.data.local.CollectionDao
+import com.pokeapp.data.local.PokeCollectionDao
 import com.pokeapp.data.local.PokeDatabase
 import dagger.Module
 import dagger.Provides
@@ -27,4 +28,8 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideCollectionDao(database: PokeDatabase): CollectionDao = database.collectionDao()
+
+    @Provides
+    @Singleton
+    fun providePokeCollectionDao(database: PokeDatabase): PokeCollectionDao = database.pokeCollectionDao()
 }

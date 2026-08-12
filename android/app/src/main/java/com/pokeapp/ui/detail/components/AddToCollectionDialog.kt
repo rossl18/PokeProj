@@ -23,24 +23,45 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.pokeapp.domain.model.Card
+import com.pokeapp.domain.model.UserCollection
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddToCollectionDialog(
     variants: List<Card>,
     initialVariant: String,
-    onConfirm: (variant: String, quantity: Int) -> Unit,
+    collections: List<UserCollection>,
+    initialCollectionId: Long,
+    onConfirm: (variant: String, quantity: Int, collectionId: Long) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var selectedVariant by remember { mutableStateOf(initialVariant) }
+    var selectedCollectionId by remember { mutableStateOf(initialCollectionId) }
     var quantity by remember { mutableIntStateOf(1) }
     var variantMenuExpanded by remember { mutableStateOf(false) }
+    var collectionMenuExpanded by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Add to Collection") },
         text = {
             Column {
+                Row {
+                    TextButton(onClick = { collectionMenuExpanded = true }) {
+                        Text("Collection: ${collections.firstOrNull { it.id == selectedCollectionId }?.name ?: ""}")
+                    }
+                    DropdownMenu(expanded = collectionMenuExpanded, onDismissRequest = { collectionMenuExpanded = false }) {
+                        collections.forEach { collection ->
+                            DropdownMenuItem(
+                                text = { Text(collection.name) },
+                                onClick = {
+                                    selectedCollectionId = collection.id
+                                    collectionMenuExpanded = false
+                                },
+                            )
+                        }
+                    }
+                }
                 Row {
                     TextButton(onClick = { variantMenuExpanded = true }) {
                         Text("Variant: $selectedVariant")
@@ -69,7 +90,7 @@ fun AddToCollectionDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(selectedVariant, quantity) }) { Text("Add") }
+            TextButton(onClick = { onConfirm(selectedVariant, quantity, selectedCollectionId) }) { Text("Add") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }

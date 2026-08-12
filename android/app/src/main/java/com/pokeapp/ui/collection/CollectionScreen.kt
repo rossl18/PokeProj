@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.pokeapp.ui.collection.components.CollectionListItem
+import com.pokeapp.ui.collection.components.CollectionSelector
 import com.pokeapp.ui.collection.components.SelectionTopBar
 import com.pokeapp.ui.collection.components.SortMenu
 import java.text.NumberFormat
@@ -48,16 +49,25 @@ fun CollectionScreen(
                     onDelete = viewModel::deleteSelected,
                 )
             } else {
-                TopAppBar(
-                    title = { Text("Collection · ${currency.format(state.displayedTotal)}") },
-                    actions = {
-                        SortMenu(selected = state.sortOption, onSelect = viewModel::setSortOption)
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    ),
-                )
+                Column {
+                    TopAppBar(
+                        title = { Text("${state.selectedCollectionName} · ${currency.format(state.displayedTotal)}") },
+                        actions = {
+                            SortMenu(selected = state.sortOption, onSelect = viewModel::setSortOption)
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        ),
+                    )
+                    CollectionSelector(
+                        collections = state.collections,
+                        selectedId = state.selectedCollectionId,
+                        onSelect = viewModel::selectCollection,
+                        onCreate = viewModel::createCollection,
+                        onDelete = viewModel::deleteCollection,
+                    )
+                }
             }
         },
     ) { padding ->

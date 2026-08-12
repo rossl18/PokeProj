@@ -142,13 +142,15 @@ fun CardDetailScreen(
             }
         }
 
-        if (showAddDialog) {
+        if (showAddDialog && state.defaultCollectionId != null) {
             AddToCollectionDialog(
                 variants = state.variants,
                 initialVariant = card.variant,
-                onConfirm = { variant, quantity ->
+                collections = state.collections,
+                initialCollectionId = state.defaultCollectionId!!,
+                onConfirm = { variant, quantity, collectionId ->
                     if (variant != card.variant) viewModel.selectVariant(variant)
-                    viewModel.addToCollection(quantity)
+                    viewModel.addToCollection(quantity, collectionId)
                     showAddDialog = false
                 },
                 onDismiss = { showAddDialog = false },
