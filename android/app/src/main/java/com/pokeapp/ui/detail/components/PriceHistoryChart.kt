@@ -18,6 +18,8 @@ import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianChartModelProducer
 import com.patrykandpatrick.vico.compose.cartesian.data.CartesianValueFormatter
 import com.patrykandpatrick.vico.compose.cartesian.data.lineModel
+import com.patrykandpatrick.vico.compose.cartesian.data.CartesianLayerRangeProvider
+import com.patrykandpatrick.vico.compose.common.data.ExtraStore
 import com.pokeapp.domain.model.PricePoint
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
@@ -58,9 +60,27 @@ fun PriceHistoryChart(history: List<PricePoint>, modifier: Modifier = Modifier) 
         }
     }
 
+    // Auto-ranging otherwise puts the min/max points exactly on the chart's
+    // top/bottom edge, making the line look like it's clipping off the chart.
+    val rangeProvider = remember {
+        object : CartesianLayerRangeProvider {
+            override fun getMinY(minY: Double, maxY: Double, extraStore: ExtraStore): Double {
+                val span = maxY - minY
+                val padding = if (span > 0.0) span * 0.1 else (if (minY == 0.0) 1.0 else kotlin.math.abs(minY) * 0.1)
+                return minY - padding
+            }
+
+            override fun getMaxY(minY: Double, maxY: Double, extraStore: ExtraStore): Double {
+                val span = maxY - minY
+                val padding = if (span > 0.0) span * 0.1 else (if (maxY == 0.0) 1.0 else kotlin.math.abs(maxY) * 0.1)
+                return maxY + padding
+            }
+        }
+    }
+
     CartesianChartHost(
         chart = rememberCartesianChart(
-            rememberLineCartesianLayer(),
+            rememberLineCartesianLayer(rangeProvider = rangeProvider),
             startAxis = VerticalAxis.rememberStart(),
             bottomAxis = HorizontalAxis.rememberBottom(valueFormatter = bottomFormatter),
         ),

@@ -1,6 +1,7 @@
 package com.pokeapp.ui.search
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -27,8 +28,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.pokeapp.ui.search.components.CameraCaptureScreen
+import com.pokeapp.ui.search.components.OwnershipFilterMenu
 import com.pokeapp.ui.search.components.ScanResultsSheet
 import com.pokeapp.ui.search.components.SearchResultRow
+import com.pokeapp.ui.search.components.SearchSortMenu
 
 private const val TAB_SEARCH = 0
 private const val TAB_SCAN = 1
@@ -81,6 +84,22 @@ fun SearchScreen(
                         .fillMaxWidth()
                         .padding(16.dp),
                 )
+                if (searchState.results.isNotEmpty() || searchState.ownershipFilter != OwnershipFilter.ALL) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp),
+                    ) {
+                        OwnershipFilterMenu(
+                            ownershipFilter = searchState.ownershipFilter,
+                            collections = searchState.collections,
+                            filterCollectionId = searchState.filterCollectionId,
+                            onOwnershipChange = searchViewModel::setOwnershipFilter,
+                            onCollectionChange = searchViewModel::setFilterCollection,
+                        )
+                        SearchSortMenu(selected = searchState.sortOption, onSelect = searchViewModel::setSortOption)
+                    }
+                }
                 if (searchState.isLoading) {
                     CircularProgressIndicator(modifier = Modifier.padding(16.dp))
                 }

@@ -8,6 +8,7 @@ import com.pokeapp.data.remote.PokeApi
 import com.pokeapp.data.remote.dto.BatchPriceRequestDto
 import com.pokeapp.data.remote.dto.CardVariantKeyDto
 import com.pokeapp.domain.model.Card
+import com.pokeapp.domain.model.CardKey
 import com.pokeapp.domain.model.CollectionItem
 import com.pokeapp.domain.model.UserCollection
 import kotlinx.coroutines.flow.Flow
@@ -16,8 +17,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
-
-private data class CardKey(val cardId: String, val variant: String)
 
 private const val MIN_REFRESH_INTERVAL_MS = 60_000L
 private const val DEFAULT_COLLECTION_NAME = "My Collection"
@@ -37,6 +36,11 @@ class CollectionRepository @Inject constructor(
 
     val collections: Flow<List<UserCollection>> = collectionsDao.getAll().map { list ->
         list.map { UserCollection(it.id, it.name) }
+    }
+
+    /** Which card/variant keys are owned in each collection — used to filter search results by ownership. */
+    val ownedKeysByCollection: Flow<Map<Long, Set<CardKey>>> = dao.getAllFlow().map { entries ->
+        entries.groupBy({ it.collectionId }, { CardKey(it.cardId, it.variant) }).mapValues { it.value.toSet() }
     }
 
     /** Ensures at least one collection exists and a selection is active. Safe to call repeatedly. */

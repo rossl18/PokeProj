@@ -16,6 +16,10 @@ interface CollectionDao {
     @Query("SELECT * FROM collection_entries")
     suspend fun getAllEntriesSnapshot(): List<CollectionEntryEntity>
 
+    /** Same as above but reactive — used to know ownership per collection for search filtering. */
+    @Query("SELECT * FROM collection_entries")
+    fun getAllFlow(): Flow<List<CollectionEntryEntity>>
+
     @Query("SELECT * FROM collection_entries WHERE collectionId = :collectionId AND cardId = :cardId AND variant = :variant LIMIT 1")
     suspend fun getByCardAndVariant(collectionId: Long, cardId: String, variant: String): CollectionEntryEntity?
 
