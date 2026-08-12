@@ -32,10 +32,13 @@ async def health():
 
 @app.get("/cards")
 async def list_cards(search: str | None = None, limit: int = 50):
-    query = "SELECT card_id, variant, card_name, market_price, low_price, mid_price, high_price, image_url, updated_at FROM latest_pokemon_prices"
+    query = (
+        "SELECT card_id, variant, card_name, market_price, low_price, mid_price, "
+        "high_price, image_url, set_name, card_number, updated_at FROM latest_pokemon_prices"
+    )
     args = []
     if search:
-        query += " WHERE card_name ILIKE $1"
+        query += " WHERE card_name ILIKE $1 OR set_name ILIKE $1 OR card_number ILIKE $1"
         args.append(f"%{search}%")
     query += " ORDER BY card_name LIMIT $%d" % (len(args) + 1)
     args.append(limit)
@@ -65,7 +68,7 @@ async def batch_prices(req: BatchRequest):
     variants = [i.variant for i in req.items]
     query = """
         SELECT card_id, variant, card_name, market_price, low_price, mid_price,
-               high_price, image_url, updated_at
+               high_price, image_url, set_name, card_number, updated_at
         FROM latest_pokemon_prices
         WHERE (card_id, variant) IN (
             SELECT * FROM unnest($1::text[], $2::text[])
@@ -80,7 +83,7 @@ async def batch_prices(req: BatchRequest):
 async def get_card(card_id: str):
     query = """
         SELECT card_id, variant, card_name, market_price, low_price, mid_price,
-               high_price, image_url, updated_at
+               high_price, image_url, set_name, card_number, updated_at
         FROM latest_pokemon_prices WHERE card_id = $1
         ORDER BY variant
     """

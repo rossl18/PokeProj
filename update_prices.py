@@ -72,6 +72,8 @@ async def main():
                         prices.get("midPrice"),
                         prices.get("highPrice"),
                         card.get("image"),
+                        card.get("set", {}).get("name"),
+                        card.get("localId"),
                     ))
 
     print(f"Connecting to Neon to process {len(records)} records...")
@@ -79,12 +81,26 @@ async def main():
     await conn.execute(
         "ALTER TABLE latest_pokemon_prices ADD COLUMN IF NOT EXISTS image_url TEXT;"
     )
+    await conn.execute(
+        "ALTER TABLE latest_pokemon_prices ADD COLUMN IF NOT EXISTS set_name TEXT;"
+    )
+    await conn.execute(
+        "ALTER TABLE latest_pokemon_prices ADD COLUMN IF NOT EXISTS card_number TEXT;"
+    )
+    # Trigram indexes make ILIKE '%text%' search fast instead of a full table scan.
+    await conn.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm;")
+    await conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_prices_card_name_trgm ON latest_pokemon_prices USING gin (card_name gin_trgm_ops);"
+    )
+    await conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_prices_set_name_trgm ON latest_pokemon_prices USING gin (set_name gin_trgm_ops);"
+    )
 
     # SQL query: Upsert into latest_pokemon_prices AND return rows where market_price actually changed
     upsert_query = """
         INSERT INTO latest_pokemon_prices
-        (card_id, variant, card_name, market_price, low_price, mid_price, high_price, image_url, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
+        (card_id, variant, card_name, market_price, low_price, mid_price, high_price, image_url, set_name, card_number, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP)
         ON CONFLICT (card_id, variant) DO UPDATE SET
             card_name = EXCLUDED.card_name,
             low_price = EXCLUDED.low_price,
@@ -92,9 +108,13 @@ async def main():
             high_price = EXCLUDED.high_price,
             market_price = EXCLUDED.market_price,
             image_url = EXCLUDED.image_url,
+            set_name = EXCLUDED.set_name,
+            card_number = EXCLUDED.card_number,
             updated_at = CURRENT_TIMESTAMP
         WHERE latest_pokemon_prices.market_price IS DISTINCT FROM EXCLUDED.market_price
            OR latest_pokemon_prices.image_url IS DISTINCT FROM EXCLUDED.image_url
+           OR latest_pokemon_prices.set_name IS DISTINCT FROM EXCLUDED.set_name
+           OR latest_pokemon_prices.card_number IS DISTINCT FROM EXCLUDED.card_number
         RETURNING card_id, card_name, variant, market_price, low_price, mid_price, high_price;
     """
 
