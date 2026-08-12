@@ -23,7 +23,7 @@ import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 
-private val labelFormatter = DateTimeFormatter.ofPattern("M/d h a")
+private val labelFormatter = DateTimeFormatter.ofPattern("M/d")
 
 private fun formatLabel(isoTimestamp: String): String = try {
     OffsetDateTime.parse(isoTimestamp).format(labelFormatter)
