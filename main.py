@@ -32,9 +32,9 @@ async def health():
 
 @app.get("/cards")
 async def list_cards(search: str | None = None, limit: int = 50):
-    query = (
-        "SELECT card_id, variant, card_name, market_price, low_price, mid_price, "
-        "high_price, image_url, set_name, card_number, updated_at FROM latest_pokemon_prices"
+    select_cols = (
+        "card_id, variant, card_name, market_price, low_price, mid_price, "
+        "high_price, image_url, set_name, card_number, updated_at"
     )
     args = []
 
@@ -44,12 +44,15 @@ async def list_cards(search: str | None = None, limit: int = 50):
     tokens = search.split() if search else []
     if tokens:
         clauses = []
+        score_terms = []
         for token in tokens:
             token = token.lstrip("#")
             if not token:
                 continue
             args.append(f"%{token}%")
             like_idx = len(args)
+            args.append(f"{token}%")
+            prefix_idx = len(args)
             if token.isdigit():
                 # A bare number almost always means "card number" — match it
                 # exactly there, but still allow it to appear in the name/set
@@ -59,19 +62,41 @@ async def list_cards(search: str | None = None, limit: int = 50):
                 clauses.append(
                     f"(card_number = ${num_idx} OR card_name ILIKE ${like_idx} OR set_name ILIKE ${like_idx})"
                 )
+                # Rank an exact card-number hit highest, since that's the
+                # most specific/deliberate kind of match for a numeric token.
+                score_terms.append(
+                    f"(CASE WHEN card_number = ${num_idx} THEN 3 "
+                    f"WHEN card_name ILIKE ${like_idx} OR set_name ILIKE ${like_idx} THEN 1 ELSE 0 END)"
+                )
             else:
                 clauses.append(
                     f"(card_name ILIKE ${like_idx} OR set_name ILIKE ${like_idx} OR card_number ILIKE ${like_idx})"
                 )
+                # A name match ranks above a set/number match, and a name
+                # that *starts with* the token ranks above one that merely
+                # contains it — this is what fixes "pikachu" surfacing a
+                # "Detective Pikachu"-set Arcanine before actual Pikachus.
+                score_terms.append(
+                    f"(CASE WHEN card_name ILIKE ${prefix_idx} THEN 3 "
+                    f"WHEN card_name ILIKE ${like_idx} THEN 2 "
+                    f"WHEN set_name ILIKE ${like_idx} THEN 1 ELSE 0 END)"
+                )
+        query = f"SELECT {select_cols}"
+        if score_terms:
+            query += ", (" + " + ".join(score_terms) + ") AS relevance"
+        query += " FROM latest_pokemon_prices"
         if clauses:
             query += " WHERE " + " AND ".join(clauses)
+        query += " ORDER BY relevance DESC, card_name ASC"
+    else:
+        query = f"SELECT {select_cols} FROM latest_pokemon_prices ORDER BY card_name ASC"
 
-    query += " ORDER BY card_name LIMIT $%d" % (len(args) + 1)
+    query += " LIMIT $%d" % (len(args) + 1)
     args.append(limit)
 
     async with pool.acquire() as conn:
         rows = await conn.fetch(query, *args)
-    return [dict(r) for r in rows]
+    return [{k: v for k, v in dict(r).items() if k != "relevance"} for r in rows]
 
 
 class CardVariantKey(BaseModel):
