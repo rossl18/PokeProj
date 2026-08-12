@@ -85,6 +85,14 @@ fun SearchScreen(
                     CircularProgressIndicator(modifier = Modifier.padding(16.dp))
                 }
                 searchState.error?.let { Text(it, modifier = Modifier.padding(16.dp)) }
+                searchState.fallbackNotice?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                }
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 8.dp),
